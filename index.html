@@ -1,26 +1,565 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Gravity Game</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MJ RUNNER - Gravity Rebound</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;700&display=swap');
+
+        :root {
+            --p1: #00f3ff;
+            --p2: #ff0055;
+            --p3: #0aff00;
+            --p4: #ffcc00;
+            --bg: #03030b;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: var(--bg);
+            font-family: 'Inter', sans-serif;
+            color: white;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .ui-screen {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, rgba(10, 10, 35, 0.95) 0%, rgba(3, 3, 11, 1) 100%);
+            backdrop-filter: blur(20px);
+            z-index: 100;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .hidden { display: none !important; }
+
+        h1 {
+            font-size: clamp(3rem, 10vw, 6rem);
+            font-weight: 900;
+            letter-spacing: 12px;
+            background: linear-gradient(to bottom, #fff 40%, #444 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.4));
+        }
+
+        .card-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin: 1.5rem 0;
+        }
+
+        .player-card {
+            width: 150px;
+            padding: 15px;
+            background: rgba(255,255,255,0.03);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .player-card.active {
+            background: rgba(255,255,255,0.1);
+            border-color: #fff;
+        }
+
+        .player-card.p1.active { border-color: var(--p1); }
+        .player-card.p2.active { border-color: var(--p2); }
+        .player-card.p3.active { border-color: var(--p3); }
+        .player-card.p4.active { border-color: var(--p4); }
+
+        .key-bind-btn {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #444;
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-top: 10px;
+            width: 100%;
+            cursor: pointer;
+        }
+        
+        .key-bind-btn.listening {
+            background: #fff;
+            color: #000;
+            animation: blink 0.6s infinite;
+        }
+
+        @keyframes blink { 50% { opacity: 0.5; } }
+
+        .btn-main {
+            background: white;
+            color: black;
+            padding: 12px 48px;
+            font-weight: 800;
+            border-radius: 4px;
+            transition: 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            cursor: pointer;
+        }
+
+        .btn-main:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255,255,255,0.4);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+            padding: 10px 32px;
+            font-weight: 700;
+            border-radius: 4px;
+            transition: 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+        }
+
+        .btn-outline:hover {
+            border-color: white;
+            background: rgba(255,255,255,0.1);
+        }
+
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            z-index: 50;
+        }
+
+        .hud-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-family: 'Orbitron';
+            font-size: 1.1rem;
+            pointer-events: none;
+        }
+        .hud-item.dead { opacity: 0.2; filter: grayscale(1); }
+
+        .difficulty-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-family: 'Orbitron';
+            color: #f00;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            pointer-events: none;
+        }
+
+        #inGameControls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 60;
+        }
+    </style>
 </head>
 <body>
-  <h1>Gravity Game</h1>
 
-  <p>
-    Gravity Game is a desktop game built using <strong>Python</strong> and
-    <strong>Pygame</strong>.
-  </p>
+<div id="hud" class="hidden"></div>
+<div id="difficulty" class="difficulty-indicator hidden">Threat Level: 1</div>
+<div id="inGameControls" class="hidden">
+    <button class="btn-outline orbitron text-xs" onclick="game.goHome()">Exit Run</button>
+</div>
 
-  <p>
-    This page serves as a public demo page for the hackathon submission.
-  </p>
+<div id="homeScreen" class="ui-screen">
+    <h1 class="orbitron">MJ RUNNER</h1>
+    <p class="orbitron text-cyan-400 text-sm tracking-[0.3em] mb-4">GRAVITY CONTROL PROTOCOL</p>
 
-  <h2>How to Run Locally</h2>
-  <pre>
-pip install pygame
-python app.py
-  </pre>
+    <div class="card-grid" id="setupGrid"></div>
+
+    <button class="btn-main orbitron mb-8" onclick="game.start()">Launch Simulation</button>
+
+    <div class="max-w-xl text-xs text-gray-500 bg-black/40 p-4 rounded-lg border border-white/10">
+        <p class="mb-2 text-white font-bold orbitron">MISSION BRIEFING</p>
+        <p>Runners sprint automatically. Tap your assigned key to flip gravity. Avoiding obstacles is paramount. Speed and hazard density increase over time.</p>
+        <p class="mt-2 italic">Click key labels above to rebind controls.</p>
+    </div>
+</div>
+
+<div id="gameOverScreen" class="ui-screen hidden">
+    <h2 class="orbitron text-5xl mb-2">LINK SEVERED</h2>
+    <p id="statsDisplay" class="text-xl text-gray-400 mb-8"></p>
+    <div class="flex gap-4">
+        <button class="btn-main orbitron" onclick="game.start()">Restart</button>
+        <button class="btn-outline orbitron" onclick="game.goHome()">Home</button>
+    </div>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+class Player {
+    constructor(index, color, keyCode, keyLabel) {
+        this.index = index;
+        this.color = color;
+        this.keyCode = keyCode;
+        this.keyLabel = keyLabel;
+        this.width = 32;
+        this.height = 64;
+        this.active = false;
+        this.dead = false;
+        this.reset();
+    }
+
+    reset() {
+        this.x = 150 + (this.index * 60); 
+        this.y = canvas.height / 2 - 32;
+        this.vy = 0;
+        this.gravity = 0.85;
+        this.dir = 1; 
+        this.dead = false;
+        this.anim = this.index * 0.5; 
+        this.trail = [];
+    }
+
+    update(platforms, camX) {
+        if (!this.active || this.dead) return;
+
+        this.vy += this.gravity * this.dir;
+        this.y += this.vy;
+        this.anim += 0.22;
+
+        if (Math.abs(this.vy) > 25) this.vy = 25 * Math.sign(this.vy);
+
+        const screenX = this.x;
+
+        for (let p of platforms) {
+            const rx = p.x - camX + 250; 
+            
+            if (screenX < rx + p.w && screenX + this.width > rx && 
+                this.y < p.y + p.h && this.y + this.height > p.y) {
+                
+                if (this.dir === 1 && this.vy > 0 && this.y + this.height - this.vy <= p.y + 15) {
+                    this.y = p.y - this.height;
+                    this.vy = 0;
+                } 
+                else if (this.dir === -1 && this.vy < 0 && this.y - this.vy >= p.y + p.h - 15) {
+                    this.y = p.y + p.h;
+                    this.vy = 0;
+                }
+                else {
+                    this.die();
+                    return;
+                }
+            }
+        }
+
+        if (this.y < -400 || this.y > canvas.height + 400) this.die();
+
+        if (Math.floor(this.anim * 10) % 3 === 0) {
+            this.trail.push({x: this.x, y: this.y});
+            if (this.trail.length > 10) this.trail.shift();
+        }
+    }
+
+    die() {
+        this.dead = true;
+        game.updateHud();
+        game.checkEnd();
+    }
+
+    draw() {
+        if (!this.active || this.dead) return;
+
+        const isUp = this.dir === -1;
+        const bx = this.x;
+        const by = this.y;
+        const w = this.width;
+        const h = this.height;
+
+        ctx.save();
+        this.trail.forEach((t, i) => {
+            ctx.globalAlpha = (i / this.trail.length) * 0.2;
+            ctx.fillStyle = this.color;
+            ctx.fillRect(t.x, t.y, w, h);
+        });
+        ctx.restore();
+
+        ctx.fillStyle = '#111';
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 3;
+
+        const headY = isUp ? by + h - 14 : by + 14;
+        const hipY = isUp ? by + 24 : by + h - 24;
+        const swing = Math.sin(this.anim) * 16;
+
+        ctx.beginPath();
+        if(!isUp) ctx.roundRect(bx + 4, by + 18, w - 8, h - 38, 8);
+        else ctx.roundRect(bx + 4, by + 20, w - 8, h - 38, 8);
+        ctx.fill(); ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(bx + w/2, headY, 9, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        
+        ctx.beginPath();
+        ctx.moveTo(bx + w/2 - 4, hipY);
+        ctx.lineTo(bx + w/2 + swing, isUp ? by : by + h);
+        ctx.moveTo(bx + w/2 + 4, hipY);
+        ctx.lineTo(bx + w/2 - swing, isUp ? by : by + h);
+        ctx.stroke();
+
+        const sY = isUp ? by + h - 26 : by + 26;
+        ctx.beginPath();
+        ctx.moveTo(bx + 2, sY);
+        ctx.lineTo(bx - 6 + Math.cos(this.anim)*12, sY + (isUp ? -18 : 18));
+        ctx.moveTo(bx + w - 2, sY);
+        ctx.lineTo(bx + w + 6 - Math.cos(this.anim)*12, sY + (isUp ? -18 : 18));
+        ctx.stroke();
+    }
+}
+
+class MJGame {
+    constructor() {
+        this.players = [
+            new Player(0, '#00f3ff', 'Space', 'SPACE'),
+            new Player(1, '#ff0055', 'KeyM', 'M-KEY'),
+            new Player(2, '#0aff00', 'ControlLeft', 'L-CTRL'),
+            new Player(3, '#ffcc00', 'ShiftRight', 'R-SHIFT')
+        ];
+        this.players[0].active = true;
+        
+        this.platforms = [];
+        this.camX = 0;
+        this.speed = 10;
+        this.score = 0;
+        this.state = 'HOME';
+        this.difficulty = 1;
+        this.listeningPlayer = null;
+
+        window.addEventListener('keydown', (e) => this.handleGlobalInput(e));
+        window.addEventListener('resize', () => this.resize());
+        this.resize();
+        this.renderSetupUI();
+        this.loop();
+    }
+
+    resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+
+    renderSetupUI() {
+        const grid = document.getElementById('setupGrid');
+        grid.innerHTML = '';
+        this.players.forEach((p, i) => {
+            const card = document.createElement('div');
+            card.className = `player-card p${i+1} ${p.active ? 'active' : ''}`;
+            
+            const title = document.createElement('div');
+            title.className = 'orbitron text-xs font-bold pointer-events-none';
+            title.innerText = `RUNNER 0${i+1}`;
+
+            const bindBtn = document.createElement('button');
+            bindBtn.className = `key-bind-btn orbitron ${this.listeningPlayer === i ? 'listening' : ''}`;
+            bindBtn.innerText = this.listeningPlayer === i ? 'PRESS KEY...' : p.keyLabel;
+            bindBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.listeningPlayer = i;
+                this.renderSetupUI();
+            };
+
+            card.appendChild(title);
+            card.appendChild(bindBtn);
+            card.onclick = (e) => {
+                if(e.target === bindBtn) return;
+                p.active = !p.active;
+                if (!this.players.some(x => x.active)) p.active = true;
+                this.renderSetupUI();
+            };
+            grid.appendChild(card);
+        });
+    }
+
+    handleGlobalInput(e) {
+        if (this.listeningPlayer !== null) {
+            const p = this.players[this.listeningPlayer];
+            p.keyCode = e.code;
+            p.keyLabel = e.key.length === 1 ? e.key.toUpperCase() : e.code.replace('Key', '');
+            this.listeningPlayer = null;
+            this.renderSetupUI();
+            return;
+        }
+
+        if (this.state === 'PLAYING') {
+            this.players.forEach(p => {
+                if (p.active && !p.dead && p.keyCode === e.code) {
+                    p.dir *= -1;
+                }
+            });
+        }
+    }
+
+    updateHud() {
+        const hud = document.getElementById('hud');
+        hud.innerHTML = '';
+        this.players.forEach(p => {
+            if (p.active) {
+                const item = document.createElement('div');
+                item.className = `hud-item ${p.dead ? 'dead' : ''}`;
+                item.style.color = p.color;
+                item.innerHTML = `<span style="font-size:1.5rem">●</span> P${p.index+1}`;
+                hud.appendChild(item);
+            }
+        });
+        const score = document.createElement('div');
+        score.className = 'hud-item orbitron';
+        score.style.marginLeft = '40px';
+        score.innerText = `SCORE: ${Math.floor(this.score)}`;
+        hud.appendChild(score);
+
+        const diffEl = document.getElementById('difficulty');
+        diffEl.innerText = `Threat Level: ${Math.floor(this.difficulty)}`;
+    }
+
+    goHome() {
+        this.state = 'HOME';
+        document.getElementById('homeScreen').classList.remove('hidden');
+        document.getElementById('gameOverScreen').classList.add('hidden');
+        document.getElementById('hud').classList.add('hidden');
+        document.getElementById('difficulty').classList.add('hidden');
+        document.getElementById('inGameControls').classList.add('hidden');
+        this.renderSetupUI();
+    }
+
+    start() {
+        this.state = 'PLAYING';
+        this.camX = 0;
+        this.score = 0;
+        this.speed = 10;
+        this.difficulty = 1;
+        this.platforms = [];
+        
+        this.platforms.push({x: -1000, y: canvas.height/2 + 80, w: 5000, h: 50});
+        this.genPlatforms(3500);
+
+        this.players.forEach(p => p.reset());
+
+        document.getElementById('homeScreen').classList.add('hidden');
+        document.getElementById('gameOverScreen').classList.add('hidden');
+        document.getElementById('hud').classList.remove('hidden');
+        document.getElementById('difficulty').classList.remove('hidden');
+        document.getElementById('inGameControls').classList.remove('hidden');
+        this.updateHud();
+    }
+
+    genPlatforms(startX) {
+        let x = startX;
+        const H = canvas.height;
+        for (let i = 0; i < 20; i++) {
+            const w = Math.max(250, (600 + Math.random() * 800) - (this.difficulty * 25));
+            const gap = Math.min(550, (220 + Math.random() * 150) + (this.difficulty * 20));
+            const y = Math.random() > 0.5 ? H * 0.18 : H * 0.72;
+            
+            if (Math.random() > (0.75 - this.difficulty * 0.05)) {
+                this.platforms.push({x: x + w/2, y: y - 160, w: 50, h: 370, hazard: true});
+            }
+            
+            this.platforms.push({x: x, y: y, w: w, h: 50});
+            x += w + gap;
+        }
+    }
+
+    checkEnd() {
+        const alive = this.players.filter(p => p.active && !p.dead);
+        if (alive.length === 0) {
+            this.state = 'OVER';
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+            document.getElementById('inGameControls').classList.add('hidden');
+            document.getElementById('statsDisplay').innerText = `PEAK THREAT LEVEL: ${Math.floor(this.difficulty)} | SCORE: ${Math.floor(this.score)}`;
+        }
+    }
+
+    update() {
+        if (this.state !== 'PLAYING') return;
+
+        this.difficulty = 1 + (this.score / 4000);
+        this.speed = 10 + (this.difficulty * 1.8);
+        
+        this.camX += this.speed;
+        this.score += this.speed * 0.05;
+        
+        if (Math.floor(this.score) % 40 === 0) this.updateHud();
+
+        this.players.forEach(p => p.update(this.platforms, this.camX));
+
+        if (this.platforms.length > 0 && this.platforms[this.platforms.length-1].x < this.camX + canvas.width + 1000) {
+            this.genPlatforms(this.platforms[this.platforms.length-1].x + 500);
+        }
+        this.platforms = this.platforms.filter(p => p.x + p.w > this.camX - 1000);
+    }
+
+    draw() {
+        ctx.fillStyle = '#03030b';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.strokeStyle = '#0d0d2a';
+        ctx.lineWidth = 1;
+        const step = 100;
+        const ox = -(this.camX * 0.5) % step;
+        for(let x = ox; x < canvas.width; x += step) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+        }
+
+        this.platforms.forEach(p => {
+            const rx = p.x - this.camX + 250;
+            ctx.fillStyle = p.hazard ? '#300' : '#0a0a25';
+            ctx.strokeStyle = p.hazard ? '#f33' : '#2255ff';
+            ctx.lineWidth = 3;
+            ctx.fillRect(rx, p.y, p.w, p.h);
+            ctx.strokeRect(rx, p.y, p.w, p.h);
+        });
+
+        this.players.forEach(p => p.draw());
+    }
+
+    loop() {
+        this.update();
+        this.draw();
+        requestAnimationFrame(() => this.loop());
+    }
+}
+
+const game = new MJGame();
+</script>
 </body>
 </html>
